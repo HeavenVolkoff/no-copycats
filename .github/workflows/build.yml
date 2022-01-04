@@ -22,16 +22,48 @@ jobs:
           fileName: "no_copycats.txt"
           repository: ${{ github.repository }}
       - name: Install dependencies
+        env:
+          DEBIAN_FRONTEND: noninteractive
+          APT_KEY_DONT_WARN_ON_DANGEROUS_USAGE: DontWarn
         run: |
+          set -eu
+
+          cat << EOF | sudo tee /etc/apt/apt.conf.d/99custom
+          quiet "1";
+          Dpkg::Options {"--force-confold";};
+          APT
+          {
+              Get
+              {
+                  Purge "true";
+                  Remove "true";
+                  Upgrade "true";
+                  Download "true";
+                  Assume-Yes "true";
+                  Fix-Broken "true";
+                  Fix-Missing "true";
+                  List-Cleanup "false";
+                  Show-Versions "false";
+                  Show-Upgraded "false";
+                  AutomaticRemove "true";
+                  Install-Suggests "false";
+                  Upgrade-Allow-New "true";
+                  Install-Recommends "false";
+              };
+          };
+          EOF
+
           sudo apt-key adv --keyserver keyserver.ubuntu.com --recv-keys CC86BB64
           sudo add-apt-repository ppa:rmescandon/yq
           sudo apt-get update
-          sudo apt-get install -y yq curl tldextract
+          sudo apt-get install yq curl tldextract
       - name: Generate blocklist
         id: generate
         run: |
+          set -eu
+
           get_domains() {
-            curl -L# "$1" |\
+            curl -sSL "$1" |\
               yq e '.[].domain' - |\
               python -c 'import sys,tldextract as t; print("\n".join(t.extract(a).registered_domain for a in sys.stdin))'
           }

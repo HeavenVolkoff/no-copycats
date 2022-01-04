@@ -22,9 +22,6 @@ jobs:
           fileName: "no_copycats.txt"
           repository: ${{ github.repository }}
       - name: Install dependencies
-        env:
-          DEBIAN_FRONTEND: noninteractive
-          APT_KEY_DONT_WARN_ON_DANGEROUS_USAGE: DontWarn
         run: |
           set -eu
 
@@ -53,10 +50,16 @@ jobs:
           };
           EOF
 
-          sudo apt-key adv --keyserver keyserver.ubuntu.com --recv-keys CC86BB64
-          sudo add-apt-repository ppa:rmescandon/yq
-          sudo apt-get update
-          sudo apt-get install yq curl tldextract
+          sudo sh -euc "$(cat << EOF
+            export DEBIAN_FRONTEND=noninteractive
+            export APT_KEY_DONT_WARN_ON_DANGEROUS_USAGE=DontWarn
+
+            apt-key adv --keyserver keyserver.ubuntu.com --recv-keys CC86BB64
+            add-apt-repository ppa:rmescandon/yq
+            apt-get update
+            apt-get install yq curl tldextract
+          EOF
+          )"
       - name: Generate blocklist
         id: generate
         run: |

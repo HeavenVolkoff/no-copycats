@@ -1,0 +1,69 @@
+name: Generate pihole no-copycat blocklist
+
+on:
+  push:
+    branches:
+      - main
+  schedule:
+    - cron: "0 0 * * *"
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v2
+      - name: Checkout last release
+        uses: robinraju/release-downloader@v1.3
+        with:
+          latest: true
+          tarBall: false
+          zipBall: false
+          fileName: "no_copycats.txt"
+          repository: ${{ github.repository }}
+      - name: Install dependencies
+        run: |
+          sudo apt-key adv --keyserver keyserver.ubuntu.com --recv-keys CC86BB64
+          sudo add-apt-repository ppa:rmescandon/yq
+          sudo apt update
+          sudo apt-get install -y yq curl tldextract
+      - name: Generate blocklist
+        id: generate
+        run: |
+          get_domains() {
+            curl -L# "$1" |\
+              yq e '.[].domain' - |\
+              python -c 'import sys,tldextract as t; print("\n".join(t.extract(a).registered_domain for a in sys.stdin))'
+          }
+
+          cat << EOF >| no_copycats.new
+          # Pi-hole no copycats blocklist
+          #
+          # url: https://github.com/HeavenVolkoff/no-copycats
+          # version: 1.0
+          # created-by: https://github.com/HeavenVolkoff
+
+          EOF
+
+          {
+            get_domains "https://raw.githubusercontent.com/arosh/ublacklist-github-translation/master/domain-list.yml"
+            get_domains "https://raw.githubusercontent.com/arosh/ublacklist-stackoverflow-translation/master/domain-list.yml"
+          } | sort | uniq >> no_copycats.new
+
+          if cmp --silent no_copycats.txt no_copycats.new; then
+            echo "::set-output name=different::no"
+          else
+            mv no_copycats.new no_copycats.txt
+            echo "::set-output name=different::yes"
+          fi
+      - name: Generate release tag name
+        id: tag
+        if: ${{ steps.generate.outputs.different == 'yes' }}
+        run: |
+          echo "::set-output name=release_tag::$(date +"%Y.%m.%d_%H-%M")"
+      - name: Release
+        if: ${{ steps.generate.outputs.different == 'yes' }}
+        uses: softprops/action-gh-release@v1
+        with:
+          files: no_copycats.txt
+          tag_name: ${{ steps.tag.outputs.release_tag }}

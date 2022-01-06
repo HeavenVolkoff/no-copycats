@@ -57,7 +57,7 @@ jobs:
             apt-key adv --keyserver keyserver.ubuntu.com --recv-keys CC86BB64
             add-apt-repository ppa:rmescandon/yq
             apt-get update
-            apt-get install yq curl tldextract
+            apt-get install yq curl
           EOF
           )"
       - name: Generate blocklist
@@ -68,7 +68,7 @@ jobs:
           get_domains() {
             curl -sSL "$1" |\
               yq e '.[].domain' - |\
-              python -c 'import sys,tldextract as t; print("\n".join(t.extract(a).registered_domain for a in sys.stdin))'
+              awk -F'.' -vOFS='.' '{ if ($1 ~ /^(*|(www))$/) { $1 = ""; print substr($0,2) } else { print } }'
           }
 
           cat << EOF >| no_copycats.new
